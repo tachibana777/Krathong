@@ -1,0 +1,14 @@
+{
+  "name": "krathong",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Loy Krathong — glowing ASCII night festival with shared krathongs and fireworks",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
