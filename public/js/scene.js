@@ -115,6 +115,7 @@ export class Scene {
 
     const H = h * 0.24;
     const flick = 0.85 + 0.15 * Math.sin(t * 3.1) * Math.sin(t * 1.7);
+    buddha(ctx, w * 0.5, horizon - 4 * u, Math.min(h * 0.46, w * 0.42), t, 0.92 + 0.08 * flick);
     chedi(ctx, w * 0.05, horizon, H * 0.9, flick);
     hall(ctx, w * 0.2, horizon, H * 1.25, H * 0.95, flick);
     chedi(ctx, w * 0.36, horizon, H * 0.55, flick);
@@ -189,6 +190,139 @@ function litFill(ctx, top, bottom, flick) {
   g.addColorStop(0, '#1d1009');
   g.addColorStop(1, `rgb(${(120 * flick) | 0},${(58 * flick) | 0},18)`);
   return g;
+}
+
+/**
+ * Seated Buddha in meditation, facing the viewer.
+ * Drawn in units where the figure is 100 tall (base at 0, flame tip at -100).
+ */
+function buddha(ctx, cx, by, H, t, flick) {
+  const s = H / 100;
+  ctx.save();
+  ctx.translate(cx, by);
+  ctx.scale(s, s);
+
+  // aura behind the head + slowly turning rays
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const hy = -66;
+  const aura = ctx.createRadialGradient(0, hy, 4, 0, hy, 62);
+  aura.addColorStop(0, `rgba(255,214,130,${0.32 * flick})`);
+  aura.addColorStop(0.35, 'rgba(255,170,70,0.1)');
+  aura.addColorStop(1, 'rgba(255,140,40,0)');
+  ctx.fillStyle = aura;
+  ctx.beginPath(); ctx.arc(0, hy, 62, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,200,110,0.07)';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * TAU + t * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 18, hy + Math.sin(a) * 18);
+    ctx.lineTo(Math.cos(a) * 58, hy + Math.sin(a) * 58);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,215,140,0.4)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, hy, 17, 0, TAU); ctx.stroke();
+  ctx.restore();
+
+  const gold = (y0, y1) => {
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
+    g.addColorStop(0, `rgb(${(255 * flick) | 0},${(214 * flick) | 0},120)`);
+    g.addColorStop(0.5, `rgb(${(214 * flick) | 0},${(146 * flick) | 0},52)`);
+    g.addColorStop(1, '#6e3e12');
+    return g;
+  };
+  const shade = 'rgba(90,45,10,0.75)';
+  const rim = `rgba(255,225,160,${0.85 * flick})`;
+
+  // pedestal: two tiers and a lotus throne
+  ctx.fillStyle = gold(-6, 0);
+  ctx.fillRect(-44, -6, 88, 6);
+  ctx.fillRect(-38, -10, 76, 4);
+  ctx.fillStyle = gold(-20, -10);
+  for (let i = 0; i < 11; i++) {
+    const x = -36 + i * 7.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4.5, -10);
+    ctx.quadraticCurveTo(x - 4, -18, x, -21);
+    ctx.quadraticCurveTo(x + 4, -18, x + 4.5, -10);
+    ctx.fill();
+  }
+
+  // crossed legs (lap)
+  ctx.fillStyle = gold(-32, -17);
+  ctx.beginPath(); ctx.ellipse(0, -24, 34, 8.5, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = rim; ctx.lineWidth = 1.3; ctx.stroke();
+  ctx.strokeStyle = shade; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-30, -22); ctx.quadraticCurveTo(0, -17, 30, -24); ctx.stroke();
+
+  // torso + arms resting into the lap
+  ctx.fillStyle = gold(-58, -22);
+  ctx.beginPath();
+  ctx.moveTo(-28, -24);
+  ctx.quadraticCurveTo(-31, -46, -19, -56);
+  ctx.quadraticCurveTo(0, -60, 19, -56);
+  ctx.quadraticCurveTo(31, -46, 28, -24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = rim; ctx.lineWidth = 1.3; ctx.stroke();
+  // arm contours and the robe's sash over the left shoulder
+  ctx.strokeStyle = shade; ctx.lineWidth = 1.1;
+  ctx.beginPath(); ctx.moveTo(-17, -52); ctx.quadraticCurveTo(-20, -38, -12, -29); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(17, -52); ctx.quadraticCurveTo(20, -38, 12, -29); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-13, -56); ctx.quadraticCurveTo(-2, -44, 6, -30); ctx.stroke();
+  // hands in dhyana mudra
+  ctx.fillStyle = `rgb(${(255 * flick) | 0},${(222 * flick) | 0},150)`;
+  ctx.beginPath(); ctx.ellipse(0, -28, 11, 3.6, 0, 0, TAU); ctx.fill();
+
+  // neck, head, ears
+  ctx.fillStyle = gold(-64, -56);
+  ctx.fillRect(-3.5, -62, 7, 6);
+  ctx.fillStyle = gold(-80, -58);
+  ctx.beginPath(); ctx.ellipse(-9.4, -67, 2, 6, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9.4, -67, 2, 6, 0, 0, TAU); ctx.fill();
+  const face = ctx.createLinearGradient(0, -80, 0, -59);
+  face.addColorStop(0, `rgb(${(255 * flick) | 0},${(230 * flick) | 0},160)`);
+  face.addColorStop(1, `rgb(${(220 * flick) | 0},${(160 * flick) | 0},70)`);
+  ctx.fillStyle = face;
+  ctx.beginPath(); ctx.ellipse(0, -69, 8.6, 10.5, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = rim; ctx.lineWidth = 1.1; ctx.stroke();
+
+  // calm face: brows, lowered eyes, nose, gentle smile
+  ctx.strokeStyle = 'rgba(60,28,4,0.95)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  for (const side of [-1, 1]) {
+    ctx.beginPath(); ctx.arc(side * 3.6, -71.5, 2.8, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke();
+    ctx.beginPath(); ctx.arc(side * 3.6, -70.5, 2.1, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.moveTo(0, -70); ctx.lineTo(-0.6, -65.8); ctx.lineTo(0.8, -65.6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, -64.4, 2.2, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke();
+
+  // hair curls + ushnisha + flame finial (ketumala)
+  ctx.fillStyle = '#4a2a0c';
+  ctx.beginPath(); ctx.ellipse(0, -76.5, 8.8, 4.2, 0, Math.PI, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -80, 4.6, 3.2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,200,110,0.6)';
+  for (let i = 0; i < 9; i++) { ctx.beginPath(); ctx.arc(-7 + i * 1.75, -77 - Math.sin((i / 8) * Math.PI) * 2.6, 0.7, 0, TAU); ctx.fill(); }
+  const fl = 1 + 0.06 * Math.sin(t * 2.3);
+  ctx.fillStyle = gold(-100, -82);
+  ctx.beginPath();
+  ctx.moveTo(-3.2, -82);
+  ctx.quadraticCurveTo(-3.6, -91 * fl, 0, -100 * fl);
+  ctx.quadraticCurveTo(3.6, -91 * fl, 3.2, -82);
+  ctx.closePath();
+  ctx.fill();
+
+  // two candles glowing at the base
+  ctx.globalCompositeOperation = 'lighter';
+  for (const x of [-52, 52]) {
+    const g = ctx.createRadialGradient(x, -8, 0, x, -8, 16);
+    g.addColorStop(0, `rgba(255,190,90,${0.9 * flick})`);
+    g.addColorStop(1, 'rgba(255,140,40,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 16, -24, 32, 32);
+  }
+  ctx.restore();
 }
 
 function chedi(ctx, cx, by, H, flick) {
