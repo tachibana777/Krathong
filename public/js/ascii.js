@@ -90,7 +90,7 @@ export class AsciiRenderer {
         const ch = (hash & 4 ? RAMP_A : RAMP_B)[level];
         // normalise colour then scale by brightness so dim areas keep their hue
         const m = Math.max(r, g, b, 1);
-        const k = (255 / m) * (0.32 + 0.68 * Math.sqrt(lum));
+        const k = (255 / m) * (0.14 + 0.86 * Math.pow(lum, 0.6));
         const style = `rgb(${(r * k) | 0},${(g * k) | 0},${(b * k) | 0})`;
         if (style !== lastStyle) { ctx.fillStyle = style; lastStyle = style; }
         ctx.fillText(ch, x * cellW, y * cellH);
