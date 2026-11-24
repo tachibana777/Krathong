@@ -33,6 +33,12 @@ export class Scene {
   /** depth 0 = near (bottom of screen) … 1 = horizon */
   waterY(d) { return this.h - (this.h - this.horizon) * d; }
 
+  /** perspective size of a krathong sitting at screen y */
+  scaleAt(y) {
+    const k = Math.max(0, (y - this.horizon) / (this.h - this.horizon));
+    return this.unit * (0.06 + 1.1 * k);
+  }
+
   update(dt) {
     for (let i = 0; i < this.lanterns.length; i++) {
       const l = this.lanterns[i];

@@ -14,6 +14,33 @@
 </head>
 <body>
   <canvas id="scene" aria-label="ฉากลอยกระทงแบบ ASCII"></canvas>
+
+  <header class="hud">
+    <h1 class="title">ลอยกระทง</h1>
+    <p class="sub">Loy Krathong · ASCII Night Festival</p>
+    <p class="stats" id="stats"><span id="total">0</span> กระทงลอยแล้ว</p>
+  </header>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <section id="panel" class="panel">
+    <div class="step"><span class="num">1</span> เลือกกระทงของคุณ</div>
+    <div id="designs" class="designs" role="radiogroup" aria-label="แบบกระทง"></div>
+    <form id="form" class="form" autocomplete="off">
+      <div class="step"><span class="num">2</span> ใส่ชื่อ แล้วอธิษฐาน</div>
+      <div class="row">
+        <input id="name" maxlength="24" placeholder="ชื่อของคุณ" required aria-label="ชื่อของคุณ" />
+        <input id="wish" maxlength="60" placeholder="คำอธิษฐาน (ไม่บังคับ)" aria-label="คำอธิษฐาน" />
+        <button type="submit" id="launch" class="launch">ลอยกระทง <span aria-hidden="true">🪷</span></button>
+      </div>
+    </form>
+  </section>
+
+  <div id="after" class="after hidden">
+    <span id="afterText"></span>
+    <button id="again" type="button">ลอยอีกกระทง</button>
+  </div>
+
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>
