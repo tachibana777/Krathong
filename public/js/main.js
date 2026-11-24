@@ -5,10 +5,21 @@ import { DESIGNS, drawKrathong } from './krathong.js';
 import { Fireworks } from './fireworks.js';
 
 const $ = (id) => document.getElementById(id);
+// localStorage throws when cookies/site data are blocked; the page must still work
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* just not remembered */ } },
+};
 // GPU renderer when possible; plain Canvas2D otherwise
 let renderer;
 try {
   renderer = new GLAsciiRenderer($('scene'), $('overlay'));
+  // phones may drop the GPU context while the app is in the background:
+  // keep it restorable and rebuild the renderer when it comes back
+  $('scene').addEventListener('webglcontextlost', (e) => e.preventDefault());
+  $('scene').addEventListener('webglcontextrestored', () => {
+    try { renderer = new GLAsciiRenderer($('scene'), $('overlay')); applyTier(); resize(); } catch { location.reload(); }
+  });
 } catch (err) {
   console.warn('WebGL unavailable, using Canvas2D renderer', err);
   const fresh = $('scene').cloneNode();
@@ -61,7 +72,7 @@ const D_MIN = Math.log(1.25), D_MAX = Math.log(6.5);
 const SPEED = 0.03;      // wander speed in (u, d) units per second
 
 const state = {
-  design: Number(localStorage.getItem('krathong:design')) || 0,
+  design: Number(store.get('krathong:design')) || 0,
   krathongs: [],          // {id, name, wish, design, born, x0, z0, own, seed}
   rings: [],              // launch ripples {x, y, born}
   t: 0,
@@ -86,12 +97,12 @@ DESIGNS.forEach((d, i) => {
 
 function selectDesign(i) {
   state.design = i;
-  localStorage.setItem('krathong:design', String(i));
+  store.set('krathong:design', String(i));
   previews.forEach((p, j) => p.card.setAttribute('aria-checked', String(i === j)));
 }
 selectDesign(Math.min(state.design, DESIGNS.length - 1));
 
-$('name').value = localStorage.getItem('krathong:name') || '';
+$('name').value = store.get('krathong:name') || '';
 
 function resizePreviews() {
   for (const p of previews) {
@@ -142,10 +153,14 @@ function spawnKrathong(item, { own = false, age = 0, scatter = false } = {}) {
     retire: null,             // time it started drifting away
   };
   state.krathongs.push(k);
-  // too many on the water → the oldest ones start drifting off, in order
+  enforceLimit();
+  return k;
+}
+
+/** too many on the water → the oldest ones (by launch time) start drifting off, in order */
+function enforceLimit() {
   const staying = state.krathongs.filter((x) => x.retire === null).sort((a, b) => a.order - b.order);
   for (let i = 0; i < staying.length - MAX_ON_WATER; i++) staying[i].retire = state.t;
-  return k;
 }
 
 /** wander + keep apart from each other + stay on the visible water */
@@ -239,24 +254,45 @@ $('form').addEventListener('submit', async (e) => {
   const name = $('name').value.trim().replace(/\s+/g, ' ');
   const wish = $('wish').value.trim().replace(/\s+/g, ' ');
   if (!name) { $('name').focus(); return; }
-  localStorage.setItem('krathong:name', name);
+  store.set('krathong:name', name);
   const item = launchOwn(name, wish);
   $('wish').value = '';
   $('launch').disabled = true;
   setTimeout(() => { $('launch').disabled = false; }, 4500);
-  try {
-    const res = await fetch('/api/krathongs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item),
-    });
-    if (res.status === 429) { toast(['ลอยถี่ไปนิด รอสักครู่แล้วค่อยลอยใหม่นะ 🙏']); return; }
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-  } catch {
-    // offline: the krathong still floats locally
+  seen.add(item.id);
+  const data = await saveKrathong(item);
+  const mine = state.krathongs.find((k) => k.id === item.id);
+  if (data?.item) {
+    // queue by the server's clock like everyone else's, not this device's
+    if (mine && data.item.ts) { mine.order = data.item.ts; enforceLimit(); }
+    return;
   }
+  // not saved: nobody else would see it, so don't pretend it's floating
+  if (mine && mine.retire === null) mine.retire = state.t - RETIRE_TIME * 0.6;
+  toast(['😢 ลอยไม่สำเร็จ ', bold('ลองกดลอยใหม่อีกครั้งนะ')]);
+  $('wish').value = wish;
+  setPanel(true);
 });
+
+/** POST with a few retries (busy shared Wi-Fi, flaky mobile data); null if it never got saved */
+async function saveKrathong(item) {
+  const waits = [1500, 3000, 5000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch('/api/krathongs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      if (res.ok) return await res.json();
+      if (res.status !== 429 && res.status < 500) return null;   // rejected for good
+    } catch {
+      // offline for a moment: retry below
+    }
+    if (attempt >= waits.length) return null;
+    await new Promise((r) => setTimeout(r, waits[attempt]));
+  }
+}
 
 /* ---------------- open / close the picker ---------------- */
 // Closed, a small bar at the bottom lets people just watch the river and reopen it.
@@ -269,11 +305,11 @@ function setPanel(open, text = ['🪷 กำลังชมกระทงบน
     $('afterText').replaceChildren(...text);
     $('again').textContent = button;
   }
-  localStorage.setItem('krathong:panel', open ? 'open' : 'closed');
+  store.set('krathong:panel', open ? 'open' : 'closed');
 }
 $('again').addEventListener('click', () => setPanel(true));
 $('collapse').addEventListener('click', () => setPanel(false));
-if (localStorage.getItem('krathong:panel') === 'closed') {
+if (store.get('krathong:panel') === 'closed') {
   // start closed without the slide-away animation
   const els = [$('panel'), $('after')];
   els.forEach((el) => { el.style.transition = 'none'; });
@@ -283,18 +319,24 @@ if (localStorage.getItem('krathong:panel') === 'closed') {
 
 
 /* ---------------- sharing with everyone else ---------------- */
-let lastSeen = 0;          // server timestamp of the newest krathong we've seen
+const seen = new Set();    // ids already shown here (also the ones that have left)
+let loaded = false;        // got the river at least once
 const POLL_MS = 3500;
 
-async function poll(first = false) {
+async function poll() {
   try {
-    const res = await fetch(`/api/krathongs?since=${lastSeen}`, { cache: 'no-store' });
+    // everyone asks the same URL, so the CDN can answer from one cached copy
+    const res = await fetch('/api/krathongs');
     if (!res.ok) throw new Error(res.status);
     const { items = [], now = Date.now() } = await res.json();
-    for (const item of items) {
-      lastSeen = Math.max(lastSeen, item.ts);
-      const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000), scatter: first });
-      if (!k || first) continue;
+    const fresh = items.filter((it) => it && it.id && !seen.has(it.id));
+    // first load, or catching up after the tab was in the background: place them quietly
+    const quiet = !loaded || fresh.length > 3;
+    loaded = true;
+    for (const item of fresh) {
+      seen.add(item.id);
+      const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000), scatter: quiet });
+      if (!k || quiet) continue;
       celebrate(k, false);
       toast(['🪷 ', bold(item.name), ` ลอยกระทง${DESIGNS[k.design].name}`]);
     }
@@ -303,7 +345,7 @@ async function poll(first = false) {
   }
 }
 
-poll(true);
+poll();
 setInterval(() => { if (!document.hidden) poll(); }, POLL_MS);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
