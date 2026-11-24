@@ -204,6 +204,17 @@ function drawRings(ctx, t) {
   for (let i = state.rings.length - 1; i >= 0; i--) {
     const r = state.rings[i];
     const age = t - r.born;
+    if (r.wake) {
+      // small ring left behind a drifting krathong
+      if (age > 2.4) { state.rings.splice(i, 1); continue; }
+      const R = (70 + age * 85) * r.s;
+      ctx.strokeStyle = `rgba(140,215,240,${0.4 * r.a * (1 - age / 2.4)})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y + 4 * r.s, R, R * 0.2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      continue;
+    }
     if (age > 2.5) { state.rings.splice(i, 1); continue; }
     for (let j = 0; j < 3; j++) {
       const a = age - j * 0.35;
@@ -216,6 +227,28 @@ function drawRings(ctx, t) {
       ctx.stroke();
     }
   }
+}
+
+/** V-shaped wake trailing behind (towards the viewer) a moving krathong */
+function drawWake(ctx, pos, t, seed) {
+  const s = pos.s;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 4; i++) {
+    const shimmer = 0.6 + 0.4 * Math.sin(t * 3 + seed + i * 1.3);
+    const len = 1 - i * 0.18;
+    ctx.strokeStyle = `rgba(150,220,245,${0.32 * pos.alpha * shimmer * len})`;
+    ctx.lineWidth = 4;
+    for (const side of [-1, 1]) {
+      const x0 = pos.x + side * (60 + i * 30) * s;
+      const y0 = pos.y + (10 + i * 14) * s;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + side * 55 * s * len, y0 + 12 * s);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 function drawLabels(ctx, list) {
@@ -274,6 +307,15 @@ function frame(now) {
   });
   list.sort((a, b) => b.pos.z - a.pos.z);
 
+  // every krathong leaves a little ring on the water as it drifts
+  for (const { k, pos } of list) {
+    if (pos.alpha < 0.3 || pos.s / scene.unit < 0.08) continue;
+    if (t - (k.lastWake ?? -Infinity) > 0.75) {
+      k.lastWake = t;
+      state.rings.push({ x: pos.x, y: pos.y, born: t, s: pos.s, a: pos.alpha, wake: true });
+    }
+  }
+
   renderer.render(
     (ctx, w, h) => {
       scene.drawSky(ctx, t);
@@ -283,6 +325,7 @@ function frame(now) {
       fireworks.drawReflection(ctx);
       drawRings(ctx, t);
       for (const { k, pos } of list) {
+        drawWake(ctx, pos, t, k.seed);
         drawKrathong(ctx, DESIGNS[k.design], pos.x, pos.y, pos.s, t, k.seed, pos.alpha);
       }
       if (panelOpen) {
