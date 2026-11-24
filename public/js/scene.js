@@ -1,6 +1,8 @@
 // Night scene: sky, stars, moon, sky lanterns, temples, river.
 // Everything is drawn in screen px; the ASCII renderer does the rest.
 
+import { glow } from './glow.js';
+
 const rand = (a, b) => a + Math.random() * (b - a);
 const TAU = Math.PI * 2;
 
@@ -25,8 +27,10 @@ export class Scene {
 
   resize(w, h) {
     this.w = w; this.h = h;
-    this.horizon = Math.round(h * 0.52);
-    this.unit = Math.min(w / 1400, h / 850);
+    // phones: lift the horizon so more river shows above the panel
+    this.horizon = Math.round(h * (w < 700 ? 0.42 : 0.52));
+    // portrait phones: keep krathongs and lights a readable size
+    this.unit = Math.min(w / (w < 700 ? 760 : 1400), h / 850);
     this.moon = { x: w * 0.8, y: h * 0.14, r: Math.max(38, Math.min(w, h) * 0.085) };
   }
 
@@ -88,12 +92,7 @@ export class Scene {
     // sky lanterns (khom loi)
     for (const l of this.lanterns) {
       const x = l.x * w + Math.sin(l.sw * 0.7) * 14, y = l.y * h, s = l.s * 6 * Math.max(0.7, this.unit);
-      const lg = ctx.createRadialGradient(x, y, 0, x, y, s * 4);
-      lg.addColorStop(0, 'rgba(255,170,60,0.9)');
-      lg.addColorStop(0.3, 'rgba(255,120,30,0.35)');
-      lg.addColorStop(1, 'rgba(255,90,20,0)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(x - s * 4, y - s * 4, s * 8, s * 8);
+      glow(ctx, x, y, s * 4, '255,140,45', 0.9);
       ctx.fillStyle = '#ffd28a';
       ctx.fillRect(x - s * 0.6, y - s, s * 1.2, s * 1.6);
     }
@@ -174,11 +173,7 @@ export class Scene {
     for (const f of this.farLights) {
       const x = f.x * w, y = this.waterY(1 - f.d) + 3;
       const a = 0.6 + 0.4 * Math.sin(t * 4 + f.p);
-      const lg = ctx.createRadialGradient(x, y, 0, x, y, 14);
-      lg.addColorStop(0, `rgba(255,190,90,${a})`);
-      lg.addColorStop(1, 'rgba(255,140,40,0)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(x - 14, y - 14, 28, 28);
+      glow(ctx, x, y, 14, '255,180,80', a);
       ctx.fillStyle = `rgba(255,180,80,${a * 0.35})`;
       ctx.fillRect(x - 1.5, y + 4, 3, 16);
     }

@@ -9,11 +9,13 @@
 }
 * { box-sizing: border-box; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden;
+  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
   background: #030509; color: var(--ink);
   font-family: 'Mitr', system-ui, sans-serif; font-weight: 300;
 }
-#scene { position: fixed; inset: 0; display: block; }
+#scene, #overlay { position: fixed; inset: 0; display: block; }
+#overlay { pointer-events: none; }
 
 /* ---------- HUD ---------- */
 .hud { position: fixed; top: 18px; left: 22px; pointer-events: none; }
@@ -61,13 +63,13 @@ html, body {
 .card {
   position: relative; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;
   background: rgba(0, 0, 0, 0.45); cursor: pointer; padding: 0 0 6px; overflow: hidden;
-  color: var(--ink); font: inherit; text-align: center;
+  color: var(--ink); font: inherit; text-align: center; touch-action: manipulation;
   transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
 .card canvas { display: block; width: 100%; height: 66px; }
 .card .nm { display: block; font-size: 14px; font-weight: 400; }
 .card .en { display: block; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
-.card:hover { transform: translateY(-3px); border-color: rgba(255, 207, 122, 0.4); }
+@media (hover: hover) { .card:hover { transform: translateY(-3px); border-color: rgba(255, 207, 122, 0.4); } }
 .card[aria-checked="true"] {
   border-color: var(--gold); transform: translateY(-4px);
   box-shadow: 0 0 0 1px var(--gold), 0 0 28px rgba(255, 180, 70, 0.45);
@@ -77,7 +79,7 @@ html, body {
 
 .row { display: flex; gap: 10px; }
 .row input {
-  flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; font: inherit; font-size: 15px;
+  flex: 1; min-width: 0; padding: 12px 14px; border-radius: 12px; font: inherit; font-size: 16px; /* ≥16px stops iOS zooming on focus */
   color: var(--ink); background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -86,7 +88,7 @@ html, body {
 .row input:focus { border-color: var(--gold); box-shadow: 0 0 18px rgba(255, 180, 70, 0.25); }
 .launch, .after button {
   border: 0; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: 16px; font-weight: 600;
-  color: #2a1400; cursor: pointer; white-space: nowrap;
+  color: #2a1400; cursor: pointer; white-space: nowrap; touch-action: manipulation;
   background: linear-gradient(180deg, #fff1c4, var(--gold) 40%, var(--gold-2));
   box-shadow: 0 0 24px rgba(255, 160, 60, 0.55);
   transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
@@ -106,14 +108,26 @@ html, body {
 .after.hidden { opacity: 0; transform: translate(-50%, 40px); pointer-events: none; }
 
 @media (max-width: 700px) {
-  .hud { top: 12px; left: 14px; }
-  .toasts { top: auto; bottom: 90px; right: 12px; }
-  .designs { grid-template-columns: repeat(10, minmax(88px, 1fr)); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
-  .card { scroll-snap-align: start; }
-  .card canvas { height: 70px; }
-  .row { flex-wrap: wrap; }
-  .row input, .row input#name { flex: 1 1 100%; }
-  .launch { flex: 1; }
+  .hud { top: calc(10px + env(safe-area-inset-top)); left: 14px; }
+  .sub { font-size: 10px; }
+  .toasts { top: calc(84px + env(safe-area-inset-top)); right: 10px; left: 10px; align-items: center; }
+  .panel { bottom: calc(8px + env(safe-area-inset-bottom)); padding: 10px 10px 12px; border-radius: 18px; }
+  .step { font-size: 13px; margin: 0 2px 6px; }
+  .num { width: 20px; height: 20px; font-size: 11px; }
+  .designs {
+    grid-template-columns: repeat(10, 84px); gap: 8px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 8px;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .designs::-webkit-scrollbar { display: none; }
+  .card { scroll-snap-align: start; padding-bottom: 4px; border-radius: 12px; }
+  .card[aria-checked="true"] { transform: none; }
+  .card canvas { height: 54px; }
+  .card .nm { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+  .card .en { display: none; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row input { padding: 10px 12px; }
+  .launch { grid-column: 1 / -1; padding: 11px; }
+  .after { bottom: calc(14px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .title { animation: none; } }
 

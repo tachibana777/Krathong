@@ -1,11 +1,55 @@
 import { AsciiRenderer } from './ascii.js';
+import { GLAsciiRenderer } from './ascii-gl.js';
 import { Scene } from './scene.js';
 import { DESIGNS, drawKrathong } from './krathong.js';
 import { Fireworks } from './fireworks.js';
 
 const $ = (id) => document.getElementById(id);
-const canvas = $('scene');
-const renderer = new AsciiRenderer(canvas);
+// GPU renderer when possible; plain Canvas2D otherwise
+let renderer;
+try {
+  renderer = new GLAsciiRenderer($('scene'), $('overlay'));
+} catch (err) {
+  console.warn('WebGL unavailable, using Canvas2D renderer', err);
+  const fresh = $('scene').cloneNode();
+  $('scene').replaceWith(fresh);   // a canvas can only ever hold one context type
+  $('overlay').remove();
+  renderer = new AsciiRenderer(fresh);
+}
+
+/* ---------------- quality (adaptive) ---------------- */
+const MOBILE = matchMedia('(pointer: coarse)').matches || innerWidth < 700;
+// each step trades a little sharpness/bloom for speed
+const TIERS = [
+  { cell: [8, 13], small: [6, 10], dpr: 2, blur: true, previews: 2, shadow: 14 },
+  { cell: [8, 13], small: [6, 10], dpr: 1.5, blur: false, previews: 2, shadow: 8 },
+  { cell: [9, 15], small: [7, 12], dpr: 1.25, blur: false, previews: 1, shadow: 0 },
+  { cell: [10, 16], small: [8, 13], dpr: 1, blur: false, previews: 1, shadow: 0 },
+];
+let tier = MOBILE ? 1 : 0;
+const perf = { sum: 0, n: 0, holdUntil: 0 };
+
+function applyTier() {
+  const q = TIERS[tier];
+  renderer.maxDpr = q.dpr;
+  renderer.useBlur = q.blur;
+  for (const p of previews) { p.r.maxDpr = Math.min(q.dpr, 1.5); p.r.useBlur = false; }
+}
+
+/** step quality down when the average frame time stays above ~25ms */
+function watchPerformance(rawDt, now) {
+  if (now < perf.holdUntil || document.hidden || rawDt > 0.25) return;
+  perf.sum += rawDt; perf.n++;
+  if (perf.n < 90) return;
+  const avg = perf.sum / perf.n;
+  perf.sum = 0; perf.n = 0;
+  if (avg > 1 / 40 && tier < TIERS.length - 1) {
+    tier++;
+    applyTier();
+    resize();
+    perf.holdUntil = now + 2000;
+  }
+}
 const scene = new Scene();
 const fireworks = new Fireworks();
 
@@ -32,8 +76,8 @@ DESIGNS.forEach((d, i) => {
   card.querySelector('.en').textContent = d.en;
   card.addEventListener('click', () => selectDesign(i));
   $('designs').appendChild(card);
-  const r = new AsciiRenderer(card.querySelector('canvas'), { cellW: 4, cellH: 6.5, glow: 0.7, blur: 4, bg: '#020306' });
-  previews.push({ card, r, design: d });
+  const r = new AsciiRenderer(card.querySelector('canvas'), { cellW: 4, cellH: 6.5, glow: 0.7, useBlur: false, maxDpr: 1.5, bg: '#020306' });
+  previews.push({ card, r, design: d, visible: true });
 });
 
 function selectDesign(i) {
@@ -190,14 +234,28 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) poll
 /* ---------------- layout ---------------- */
 function resize() {
   const w = innerWidth, h = innerHeight;
-  if (w < 700) { renderer.cellW = 6; renderer.cellH = 10; } else { renderer.cellW = 8; renderer.cellH = 13; }
+  const q = TIERS[tier];
+  [renderer.cellW, renderer.cellH] = w < 700 ? q.small : q.cell;
   renderer.resize(w, h);
   scene.resize(w, h);
   fireworks.resize(w, h, scene.horizon, scene.unit);
   resizePreviews();
 }
-addEventListener('resize', resize);
+let resizeTimer = 0;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 120); });
+applyTier();
 resize();
+
+// only animate the preview cards that are actually on screen (mobile scrolls them)
+if ('IntersectionObserver' in window) {
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const p = previews.find((x) => x.card === e.target);
+      if (p) p.visible = e.isIntersecting;
+    }
+  }, { root: $('designs'), threshold: 0.05 });
+  previews.forEach((p) => io.observe(p.card));
+}
 
 /* ---------------- drawing ---------------- */
 function drawRings(ctx, t) {
@@ -264,12 +322,12 @@ function drawLabels(ctx, list) {
     ctx.globalAlpha = a;
     ctx.font = `600 ${size}px Mitr, sans-serif`;
     ctx.shadowColor = k.own ? 'rgba(255,170,60,0.95)' : 'rgba(255,200,140,0.7)';
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = TIERS[tier].shadow;
     ctx.fillStyle = k.own ? '#ffd98a' : '#fff1dc';
     ctx.fillText(k.name, pos.x, top);
     if (k.wish && rel > 0.3) {
       ctx.font = `300 ${Math.max(10, size * 0.62)}px Mitr, sans-serif`;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = TIERS[tier].shadow * 0.6;
       ctx.fillStyle = 'rgba(255,236,210,0.85)';
       ctx.fillText(`“${k.wish}”`, pos.x, top + size * 0.95);
     }
@@ -279,10 +337,13 @@ function drawLabels(ctx, list) {
 
 /* ---------------- main loop ---------------- */
 let last = performance.now();
-let previewClock = 0;
+let previewTurn = 0;
+let panelTop = innerHeight;
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const rawDt = (now - last) / 1000;
+  const dt = Math.min(0.05, rawDt);
   last = now;
+  watchPerformance(rawDt, now);
   state.t += dt;
   const t = state.t;
   scene.update(dt);
@@ -295,7 +356,7 @@ function frame(now) {
 
   const panel = $('panel');
   const panelOpen = !panel.classList.contains('hidden');
-  const panelTop = panelOpen ? panel.getBoundingClientRect().top : innerHeight;
+  if (panelOpen && (state.frame = (state.frame || 0) + 1) % 15 === 1) panelTop = panel.getBoundingClientRect().top;
 
   // compute positions, drop finished ones, sort far → near
   const list = [];
@@ -338,11 +399,15 @@ function frame(now) {
     (ctx) => drawLabels(ctx, list),
   );
 
-  // previews at ~24fps to keep things light
-  previewClock += dt;
-  if (panelOpen && previewClock > 1 / 24) {
-    previewClock = 0;
-    previews.forEach((p, i) => drawPreview(p, t, i));
+  // previews: a couple of cards per frame, round-robin, visible ones only
+  if (panelOpen) {
+    for (let n = 0, tries = 0; n < TIERS[tier].previews && tries < previews.length; tries++) {
+      previewTurn = (previewTurn + 1) % previews.length;
+      const p = previews[previewTurn];
+      if (!p.visible) continue;
+      drawPreview(p, t, previewTurn);
+      n++;
+    }
   }
   requestAnimationFrame(frame);
 }

@@ -7,6 +7,15 @@
 const RAMP_A = [' ', '.', ':', '-', '=', '+', '*', '#', '%', '&', '@'];
 const RAMP_B = [' ', '`', "'", '~', 'i', 'x', 'o', '8', '$', 'B', '@'];
 
+// ctx.filter is slow or missing on many phones (and older Safari); test once.
+const FILTER_OK = (() => {
+  try {
+    const c = document.createElement('canvas').getContext('2d');
+    c.filter = 'blur(2px)';
+    return c.filter === 'blur(2px)';
+  } catch { return false; }
+})();
+
 export class AsciiRenderer {
   constructor(canvas, opts = {}) {
     this.canvas = canvas;
@@ -17,8 +26,10 @@ export class AsciiRenderer {
     this.cellH = opts.cellH || 13;
     this.glow = opts.glow ?? 0.5;
     this.blur = opts.blur ?? 7;
+    this.useBlur = (opts.useBlur ?? true) && FILTER_OK;
+    this.maxDpr = opts.maxDpr ?? 2;
     this.bg = opts.bg || '#030509';
-    this.threshold = opts.threshold ?? 0.03;
+    this.threshold = opts.threshold ?? 0.04;
     this.fontFamily = opts.fontFamily || "'JetBrains Mono', 'Consolas', monospace";
   }
 
@@ -29,7 +40,7 @@ export class AsciiRenderer {
   }
 
   resize(w, h) {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, this.maxDpr);
     this.dpr = dpr;
     this.w = w;
     this.h = h;
@@ -71,7 +82,7 @@ export class AsciiRenderer {
       ctx.save();
       ctx.globalAlpha = this.glow;
       ctx.imageSmoothingEnabled = true;
-      ctx.filter = `blur(${this.blur}px)`;
+      if (this.useBlur && FILTER_OK) ctx.filter = `blur(${this.blur}px)`;
       ctx.drawImage(this.low, 0, 0, cols * cellW, rows * cellH);
       ctx.restore();
     }

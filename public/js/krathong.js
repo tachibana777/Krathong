@@ -1,6 +1,8 @@
 // The five krathong designs. Each draws itself in local units:
 // origin = centre of the waterline, body ≈ 200 units wide, up is −y.
 
+import { glow } from './glow.js';
+
 const TAU = Math.PI * 2;
 
 function grad(ctx, x0, y0, x1, y1, stops) {
@@ -14,18 +16,6 @@ function circle(ctx, x, y, r, fill) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, TAU);
   ctx.fill();
-}
-
-function glow(ctx, x, y, r, rgb, a) {
-  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, `rgba(${rgb},${a})`);
-  g.addColorStop(0.35, `rgba(${rgb},${a * 0.35})`);
-  g.addColorStop(1, `rgba(${rgb},0)`);
-  const prev = ctx.globalCompositeOperation;
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = g;
-  ctx.fillRect(x - r, y - r, r * 2, r * 2);
-  ctx.globalCompositeOperation = prev;
 }
 
 /** pointed petal standing on (0,0), pointing to (0,-len); caller rotates */
