@@ -1,0 +1,4 @@
+:root { --gold: #ffcf7a; --pink: #ff8fbf; --ink: #f6ead2; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #030509; color: var(--ink); overflow: hidden; font-family: 'Mitr', system-ui, sans-serif; }
+#scene { position: fixed; inset: 0; display: block; }

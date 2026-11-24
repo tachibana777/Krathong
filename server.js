@@ -1,7 +1,7 @@
 // Local dev server (no dependencies): serves /public and /api/* like Vercel does.
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'public');
@@ -32,10 +32,10 @@ http.createServer(async (req, res) => {
       if (req.method === 'POST') req.body = await readBody(req);
       return await mod.default(req, res);
     }
-    let path = normalize(decodeURIComponent(url.pathname)).replace(/^([/\])+/, '');
-    if (!path || path.endsWith('/') || path.endsWith('\')) path += 'index.html';
-    const file = join(ROOT, path);
-    if (!file.startsWith(ROOT)) throw Object.assign(new Error('forbidden'), { code: 'ENOENT' });
+    let path = decodeURIComponent(url.pathname);
+    if (path.endsWith('/')) path += 'index.html';
+    const file = resolve(ROOT, '.' + path);
+    if (!file.startsWith(ROOT + sep)) throw Object.assign(new Error('forbidden'), { code: 'ENOENT' });
     const data = await readFile(file);
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
     res.end(data);
