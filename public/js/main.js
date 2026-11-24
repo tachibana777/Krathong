@@ -126,7 +126,6 @@ function launchOwn(name, wish) {
   };
   const k = spawnKrathong(item, { own: true });
   celebrate(k, true);
-  setTotal(state.total + 1);
   $('panel').classList.add('hidden');
   $('afterText').replaceChildren('✨ กระทงของ ', bold(name), ' กำลังลอยไป…');
   $('after').classList.remove('hidden');
@@ -152,10 +151,8 @@ $('form').addEventListener('submit', async (e) => {
     if (res.status === 429) { toast(['ลอยถี่ไปนิด รอสักครู่แล้วค่อยลอยใหม่นะ 🙏']); return; }
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
-    if (typeof data.total === 'number') setTotal(Math.max(state.total, data.total));
-    setOnline(true);
   } catch {
-    setOnline(false);
+    // offline: the krathong still floats locally
   }
 });
 
@@ -164,31 +161,16 @@ $('again').addEventListener('click', () => {
   $('panel').classList.remove('hidden');
 });
 
-state.total = 0;
-function setTotal(n) {
-  state.total = n;
-  $('total').textContent = n.toLocaleString('th-TH');
-}
 
 /* ---------------- sharing with everyone else ---------------- */
 let lastSeen = 0;          // server timestamp of the newest krathong we've seen
-let online = true;
 const POLL_MS = 3500;
-
-function setOnline(ok) {
-  if (ok === online) return;
-  online = ok;
-  $('stats').classList.toggle('offline', !ok);
-  $('stats').title = ok ? '' : 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เห็นเฉพาะกระทงของคุณ';
-}
 
 async function poll(first = false) {
   try {
     const res = await fetch(`/api/krathongs?since=${lastSeen}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(res.status);
-    const { items = [], total = 0, now = Date.now() } = await res.json();
-    setOnline(true);
-    setTotal(Math.max(total, first ? 0 : state.total));
+    const { items = [], now = Date.now() } = await res.json();
     for (const item of items) {
       lastSeen = Math.max(lastSeen, item.ts);
       const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000) });
@@ -197,7 +179,7 @@ async function poll(first = false) {
       toast(['🪷 ', bold(item.name), ` ลอยกระทง${DESIGNS[k.design].name}`]);
     }
   } catch {
-    setOnline(false);
+    // offline or server hiccup: try again next poll
   }
 }
 

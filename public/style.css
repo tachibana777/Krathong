@@ -25,8 +25,6 @@ html, body {
   animation: breathe 4s ease-in-out infinite;
 }
 .sub { margin: 4px 0 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase; }
-.stats { margin: 10px 0 0; font-size: 14px; color: var(--gold); text-shadow: 0 0 12px rgba(255, 170, 60, 0.6); }
-.stats #total { font-family: 'JetBrains Mono', monospace; font-size: 18px; }
 @keyframes breathe { 50% { filter: drop-shadow(0 0 26px rgba(255, 170, 60, 0.85)); } }
 
 /* ---------- toasts ---------- */
@@ -119,5 +117,3 @@ html, body {
 }
 @media (prefers-reduced-motion: reduce) { .title { animation: none; } }
 
-.stats.offline { color: var(--muted); }
-.stats.offline::after { content: ' · ออฟไลน์'; font-size: 12px; }
