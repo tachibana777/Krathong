@@ -230,9 +230,7 @@ function launchOwn(name, wish) {
   };
   const k = spawnKrathong(item, { own: true });
   celebrate(k, true);
-  $('panel').classList.add('hidden');
-  $('afterText').replaceChildren('✨ กระทงของ ', bold(name), ' กำลังลอยไป…');
-  $('after').classList.remove('hidden');
+  setPanel(false, ['✨ กระทงของ ', bold(name), ' กำลังลอยไป…'], 'ลอยอีกกระทง');
   return item;
 }
 
@@ -260,10 +258,28 @@ $('form').addEventListener('submit', async (e) => {
   }
 });
 
-$('again').addEventListener('click', () => {
-  $('after').classList.add('hidden');
-  $('panel').classList.remove('hidden');
-});
+/* ---------------- open / close the picker ---------------- */
+// Closed, a small bar at the bottom lets people just watch the river and reopen it.
+// The choice is remembered, so someone who already floated one comes back to the view.
+function setPanel(open, text = ['🪷 กำลังชมกระทงบนสายน้ำ'], button = 'ลอยกระทง ▴') {
+  $('panel').classList.toggle('hidden', !open);
+  $('after').classList.toggle('hidden', open);
+  $('collapse').setAttribute('aria-expanded', String(open));
+  if (!open) {
+    $('afterText').replaceChildren(...text);
+    $('again').textContent = button;
+  }
+  localStorage.setItem('krathong:panel', open ? 'open' : 'closed');
+}
+$('again').addEventListener('click', () => setPanel(true));
+$('collapse').addEventListener('click', () => setPanel(false));
+if (localStorage.getItem('krathong:panel') === 'closed') {
+  // start closed without the slide-away animation
+  const els = [$('panel'), $('after')];
+  els.forEach((el) => { el.style.transition = 'none'; });
+  setPanel(false);
+  requestAnimationFrame(() => requestAnimationFrame(() => els.forEach((el) => { el.style.transition = ''; })));
+}
 
 
 /* ---------------- sharing with everyone else ---------------- */

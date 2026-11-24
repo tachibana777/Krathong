@@ -24,7 +24,9 @@
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <section id="panel" class="panel">
-    <div class="step"><span class="num">1</span> เลือกกระทงของคุณ</div>
+    <div class="step"><span class="num">1</span> เลือกกระทงของคุณ
+      <button id="collapse" class="collapse" type="button" aria-controls="panel" aria-expanded="true">ซ่อน <span aria-hidden="true">▾</span></button>
+    </div>
     <div id="designs" class="designs" role="radiogroup" aria-label="แบบกระทง"></div>
     <form id="form" class="form" autocomplete="off">
       <div class="step"><span class="num">2</span> ใส่ชื่อ แล้วอธิษฐาน</div>
@@ -38,7 +40,7 @@
 
   <div id="after" class="after hidden">
     <span id="afterText"></span>
-    <button id="again" type="button">ลอยอีกกระทง</button>
+    <button id="again" type="button" aria-controls="panel">ลอยอีกกระทง</button>
   </div>
 
   <script type="module" src="/js/main.js"></script>
