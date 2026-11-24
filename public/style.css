@@ -118,3 +118,6 @@ html, body {
   .launch { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .title { animation: none; } }
+
+.stats.offline { color: var(--muted); }
+.stats.offline::after { content: ' · ออฟไลน์'; font-size: 12px; }

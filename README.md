@@ -1,1 +1,47 @@
-# Krathong
+# 🪷 Krathong — ลอยกระทง ASCII เรืองแสง
+
+ลอยกระทงออนไลน์ในโลก ASCII เรืองแสง: เลือกกระทง 1 ใน 5 แบบ ใส่ชื่อและคำอธิษฐาน กดลอย แล้วพลุจะจุดขึ้นฟ้า กระทงของทุกคนที่เปิดเว็บอยู่ลอยอยู่บนแม่น้ำสายเดียวกัน
+
+- **กระทง 5 แบบ:** บัวหลวง · ใบตองนมแมว · ดาวเรืองทอง · ขนมปังรักษ์โลก · หงส์ทอง
+- **ฉาก ASCII:** พระจันทร์เต็มดวง วัด เจดีย์ โคมลอย แสงสะท้อนบนน้ำ (วาดด้วย Canvas แล้วแปลงเป็นตัวอักษรเรืองแสงแบบเรียลไทม์)
+- **พลุ 8 แบบ:** peony, ring, willow, double, glitter, heart, chrysanthemum (มีเงาสะท้อนบนน้ำ)
+- **เห็นกระทงของคนอื่น:** หน้าเว็บดึงกระทงใหม่ทุก 3.5 วินาที พร้อมแจ้งเตือนเมื่อมีคนลอยกระทง
+
+## รันในเครื่อง
+
+```bash
+npm run dev        # http://localhost:3000
+```
+
+ไม่ต้องติดตั้งแพ็กเกจเพิ่ม (Node 18 ขึ้นไป) ถ้ารันในเครื่องโดยไม่ตั้งค่า Redis ข้อมูลจะเก็บไว้ในหน่วยความจำ เปิดหลายแท็บแล้วจะเห็นกระทงของกันและกัน
+
+## Deploy บน Vercel
+
+1. ไปที่ [vercel.com/new](https://vercel.com/new) แล้ว import repo นี้ (ไม่ต้องตั้งค่าอะไร เพราะ `vercel.json` กำหนดให้แล้ว)
+2. ในโปรเจกต์บน Vercel ไปที่ **Storage → Create / Connect → Upstash for Redis** (มีแพ็กเกจฟรี) แล้วเชื่อมกับโปรเจกต์นี้
+   Vercel จะสร้าง env `KV_REST_API_URL` และ `KV_REST_API_TOKEN` ให้เอง
+3. **Redeploy** หนึ่งครั้งเพื่อให้ env มีผล เสร็จแล้ว
+
+> ถ้ายังไม่ได้เชื่อม Redis เว็บจะยังใช้งานได้ แต่แต่ละ serverless instance จะมีหน่วยความจำของตัวเอง ทำให้อาจเห็นกระทงของคนอื่นไม่ครบ
+
+## โครงสร้าง
+
+```
+public/
+  index.html, style.css
+  js/ascii.js       ตัวแปลง canvas → ASCII เรืองแสง (bloom)
+  js/scene.js       ท้องฟ้า ดาว พระจันทร์ โคมลอย วัด แม่น้ำ
+  js/krathong.js    กระทง 5 แบบ + แสงเทียน ธูป เงาสะท้อน
+  js/fireworks.js   พลุ
+  js/main.js        UI, การลอย, perspective, sync กับ API
+api/krathongs.js    GET/POST กระทง (Vercel serverless function)
+lib/store.js        Upstash Redis (REST) หรือหน่วยความจำในเครื่อง
+server.js           dev server ที่ไม่ต้องติดตั้งอะไรเพิ่ม
+```
+
+## API
+
+| Method | Path | Body / Query | ผลลัพธ์ |
+|---|---|---|---|
+| GET | `/api/krathongs?since=<ms>` | | `{ items, total, now }` กระทงในช่วง 60 วินาทีล่าสุด |
+| POST | `/api/krathongs` | `{ name, wish?, design: 0-4 }` | `{ item, total }` ชื่อสูงสุด 24 ตัวอักษร คำอธิษฐาน 60 ตัวอักษร จำกัด 1 กระทงต่อ IP ทุก 4 วินาที |

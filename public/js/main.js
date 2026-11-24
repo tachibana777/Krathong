@@ -133,14 +133,30 @@ function launchOwn(name, wish) {
   return item;
 }
 
-$('form').addEventListener('submit', (e) => {
+$('form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('name').value.trim().replace(/\s+/g, ' ');
   const wish = $('wish').value.trim().replace(/\s+/g, ' ');
   if (!name) { $('name').focus(); return; }
   localStorage.setItem('krathong:name', name);
-  launchOwn(name, wish);
+  const item = launchOwn(name, wish);
   $('wish').value = '';
+  $('launch').disabled = true;
+  setTimeout(() => { $('launch').disabled = false; }, 4500);
+  try {
+    const res = await fetch('/api/krathongs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    });
+    if (res.status === 429) { toast(['ลอยถี่ไปนิด รอสักครู่แล้วค่อยลอยใหม่นะ 🙏']); return; }
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    if (typeof data.total === 'number') setTotal(Math.max(state.total, data.total));
+    setOnline(true);
+  } catch {
+    setOnline(false);
+  }
 });
 
 $('again').addEventListener('click', () => {
@@ -153,6 +169,41 @@ function setTotal(n) {
   state.total = n;
   $('total').textContent = n.toLocaleString('th-TH');
 }
+
+/* ---------------- sharing with everyone else ---------------- */
+let lastSeen = 0;          // server timestamp of the newest krathong we've seen
+let online = true;
+const POLL_MS = 3500;
+
+function setOnline(ok) {
+  if (ok === online) return;
+  online = ok;
+  $('stats').classList.toggle('offline', !ok);
+  $('stats').title = ok ? '' : 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — เห็นเฉพาะกระทงของคุณ';
+}
+
+async function poll(first = false) {
+  try {
+    const res = await fetch(`/api/krathongs?since=${lastSeen}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    const { items = [], total = 0, now = Date.now() } = await res.json();
+    setOnline(true);
+    setTotal(Math.max(total, first ? 0 : state.total));
+    for (const item of items) {
+      lastSeen = Math.max(lastSeen, item.ts);
+      const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000) });
+      if (!k || first) continue;
+      celebrate(k, false);
+      toast(['🪷 ', bold(item.name), ` ลอยกระทง${DESIGNS[k.design].name}`]);
+    }
+  } catch {
+    setOnline(false);
+  }
+}
+
+poll(true);
+setInterval(() => { if (!document.hidden) poll(); }, POLL_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
 
 /* ---------------- layout ---------------- */
 function resize() {
@@ -273,5 +324,3 @@ function frame(now) {
 requestAnimationFrame(frame);
 document.fonts?.ready.then(resize);
 
-// handy for debugging / step 5
-window.__krathong = { state, spawnKrathong, fireworks, celebrate, toast, bold, setTotal };
