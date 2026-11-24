@@ -45,7 +45,7 @@ html, body {
 /* ---------- panel ---------- */
 .panel {
   position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
-  width: min(880px, calc(100vw - 24px));
+  width: min(940px, calc(100vw - 24px));
   background: var(--glass); border: 1px solid var(--line); border-radius: 22px;
   backdrop-filter: blur(10px) saturate(1.2);
   padding: 14px 16px 16px; z-index: 4;
@@ -59,14 +59,14 @@ html, body {
   font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #1a0f02;
   background: linear-gradient(180deg, #fff0c8, var(--gold-2));
 }
-.designs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
+.designs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 10px; }
 .card {
   position: relative; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;
   background: rgba(0, 0, 0, 0.45); cursor: pointer; padding: 0 0 6px; overflow: hidden;
   color: var(--ink); font: inherit; text-align: center;
   transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
-.card canvas { display: block; width: 100%; height: 96px; }
+.card canvas { display: block; width: 100%; height: 66px; }
 .card .nm { display: block; font-size: 14px; font-weight: 400; }
 .card .en { display: block; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
 .card:hover { transform: translateY(-3px); border-color: rgba(255, 207, 122, 0.4); }
@@ -110,9 +110,9 @@ html, body {
 @media (max-width: 700px) {
   .hud { top: 12px; left: 14px; }
   .toasts { top: auto; bottom: 90px; right: 12px; }
-  .designs { grid-template-columns: repeat(5, minmax(92px, 1fr)); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+  .designs { grid-template-columns: repeat(10, minmax(88px, 1fr)); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
   .card { scroll-snap-align: start; }
-  .card canvas { height: 80px; }
+  .card canvas { height: 70px; }
   .row { flex-wrap: wrap; }
   .row input, .row input#name { flex: 1 1 100%; }
   .launch { flex: 1; }

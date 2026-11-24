@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { add, allow, recent } from '../lib/store.js';
 
-const DESIGN_COUNT = 5;
+const DESIGN_COUNT = 10;
 const WINDOW_MS = 60_000; // a krathong is "on the river" for about a minute
 
 function send(res, status, body) {
