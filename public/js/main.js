@@ -21,8 +21,8 @@ try {
 const MOBILE = matchMedia('(pointer: coarse)').matches || innerWidth < 700;
 // each step trades a little sharpness/bloom for speed
 const TIERS = [
-  { cell: [8, 13], small: [6, 10], dpr: 2, blur: true, previews: 2, shadow: 14 },
-  { cell: [8, 13], small: [6, 10], dpr: 1.5, blur: false, previews: 2, shadow: 8 },
+  { cell: [7, 11], small: [5, 9], dpr: 2, blur: true, previews: 2, shadow: 14 },
+  { cell: [7, 11], small: [5, 9], dpr: 1.5, blur: false, previews: 2, shadow: 8 },
   { cell: [9, 15], small: [7, 12], dpr: 1.25, blur: false, previews: 1, shadow: 0 },
   { cell: [10, 16], small: [8, 13], dpr: 1, blur: false, previews: 1, shadow: 0 },
 ];
@@ -53,8 +53,12 @@ function watchPerformance(rawDt, now) {
 const scene = new Scene();
 const fireworks = new Fireworks();
 
-const LIFE = 55;          // seconds a krathong stays visible
-const Z_FAR = 13;         // how far it drifts (world units)
+const MAX_ON_WATER = 10; // more than this → the oldest drifts away into the distance
+const RETIRE_TIME = 14;  // seconds a departing krathong takes to fade out
+// where krathongs may wander: u = sideways (fraction of screen width), d = ln(depth)
+const U_MAX = 0.4;
+const D_MIN = Math.log(1.25), D_MAX = Math.log(6.5);
+const SPEED = 0.03;      // wander speed in (u, d) units per second
 
 const state = {
   design: Number(localStorage.getItem('krathong:design')) || 0,
@@ -110,38 +114,94 @@ function drawPreview(p, t, i) {
 }
 
 /* ---------------- krathongs on the river ---------------- */
-function spawnKrathong(item, { own = false, age = 0 } = {}) {
+/**
+ * @param scatter  true for krathongs that were already on the river when the page
+ *                 opened: drop them anywhere instead of having them all enter at once
+ */
+function spawnKrathong(item, { own = false, age = 0, scatter = false } = {}) {
   if (state.krathongs.some((k) => k.id === item.id)) return null;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  let u, d;
+  if (own) { u = 0; d = Math.log(0.95); }                       // right in front of you
+  else if (scatter) { u = (Math.random() * 2 - 1) * U_MAX * 0.9; d = D_MIN + Math.random() * (D_MAX - D_MIN); }
+  else { u = side * (0.25 + Math.random() * 0.3); d = Math.log(1.4 + Math.random() * 1.6); }
+  // head off in a random direction (own one goes out into the river first)
+  const heading = own ? Math.PI / 2 + (Math.random() - 0.5) * 1.6 : Math.random() * Math.PI * 2;
   const k = {
     id: item.id,
     name: item.name,
     wish: item.wish || '',
     design: DESIGNS[item.design] ? item.design : 0,
     born: state.t - age,
+    shown: state.t,           // when it appeared on this screen (for the fade-in)
+    order: item.ts || Date.now(),
     own,
-    // own krathong starts centre-front; others enter from either side a bit further out
-    x0: own ? 0 : (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.6),
-    z0: own ? 0.95 : 1.4 + Math.random() * 1.2,
+    u, d, heading,
+    turn: (Math.random() - 0.5) * 0.3,
     seed: Math.random() * 100,
+    retire: null,             // time it started drifting away
   };
   state.krathongs.push(k);
+  // too many on the water → the oldest ones start drifting off, in order
+  const staying = state.krathongs.filter((x) => x.retire === null).sort((a, b) => a.order - b.order);
+  for (let i = 0; i < staying.length - MAX_ON_WATER; i++) staying[i].retire = state.t;
   return k;
+}
+
+/** wander + keep apart from each other + stay on the visible water */
+function moveKrathongs(dt, t) {
+  const list = state.krathongs;
+  for (const k of list) {
+    if (k.retire !== null) {
+      // leaving: glide away towards the horizon, faster and faster
+      const a = t - k.retire;
+      k.d += dt * (0.04 + a * 0.012);
+      k.u *= 1 - dt * 0.03;
+      continue;
+    }
+    // slowly changing heading
+    k.turn += (Math.random() - 0.5) * dt * 0.6;
+    k.turn = Math.max(-0.35, Math.min(0.35, k.turn));
+    k.heading += k.turn * dt;
+    let vu = Math.cos(k.heading) * SPEED;
+    let vd = Math.sin(k.heading) * SPEED;
+
+    // push away from neighbours so they spread out over the whole river
+    for (const o of list) {
+      if (o === k || o.retire !== null) continue;
+      const du = k.u - o.u, dd = (k.d - o.d) * 0.7;
+      const dist2 = du * du + dd * dd;
+      if (dist2 > 0.09 || dist2 === 0) continue;
+      const f = (0.09 - dist2) / 0.09 * 0.08 / Math.sqrt(dist2);
+      vu += du * f; vd += dd * f;
+    }
+    // soft walls
+    if (k.u > U_MAX) vu -= (k.u - U_MAX) * 0.6;
+    if (k.u < -U_MAX) vu -= (k.u + U_MAX) * 0.6;
+    if (k.d < D_MIN) vd += (D_MIN - k.d) * 0.5;
+    if (k.d > D_MAX) vd -= (k.d - D_MAX) * 0.6;
+
+    k.u += vu * dt;
+    k.d += vd * dt;
+    // steer the heading along with where the walls/neighbours push it
+    const want = Math.atan2(vd, vu);
+    let diff = want - k.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    k.heading += diff * Math.min(1, dt * 0.8);
+  }
 }
 
 /** world → screen. z = distance (1 = right at the front). */
 function place(k, t) {
-  const age = t - k.born;
-  const p = age / LIFE;
-  const push = 0.25 * (1 - Math.exp(-age * 1.5));
-  const z = k.z0 + push + (Z_FAR - k.z0) * Math.pow(p, 1.5);
+  const z = Math.exp(k.d);
   const { w, h, horizon, unit } = scene;
-  const drift = Math.sin(age * 0.25 + k.seed) * 0.12;
-  const x = w / 2 + ((k.x0 + drift) * w * 0.55) / z * 1.4;
+  const bob = Math.sin((t - k.born) * 0.25 + k.seed) * 0.02;
+  const x = w / 2 + (k.u + bob) * w;
   const y = horizon + ((h - horizon) * 0.94) / z;
   const s = (unit * 1.15) / z;
-  const fadeIn = Math.min(1, age / 0.8);
-  const fadeOut = p > 0.82 ? Math.max(0, 1 - (p - 0.82) / 0.18) : 1;
-  return { x, y, s, z, alpha: fadeIn * fadeOut, done: p >= 1 };
+  const fadeIn = Math.min(1, (t - k.shown) / 0.8);
+  const fadeOut = k.retire === null ? 1 : Math.max(0, 1 - (t - k.retire) / RETIRE_TIME);
+  return { x, y, s, z, alpha: fadeIn * fadeOut, done: fadeOut <= 0 };
 }
 
 /* ---------------- launching ---------------- */
@@ -217,7 +277,7 @@ async function poll(first = false) {
     const { items = [], now = Date.now() } = await res.json();
     for (const item of items) {
       lastSeen = Math.max(lastSeen, item.ts);
-      const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000) });
+      const k = spawnKrathong(item, { age: Math.max(0, (now - item.ts) / 1000), scatter: first });
       if (!k || first) continue;
       celebrate(k, false);
       toast(['🪷 ', bold(item.name), ` ลอยกระทง${DESIGNS[k.design].name}`]);
@@ -287,9 +347,12 @@ function drawRings(ctx, t) {
   }
 }
 
-/** V-shaped wake trailing behind (towards the viewer) a moving krathong */
-function drawWake(ctx, pos, t, seed) {
-  const s = pos.s;
+/** V-shaped wake trailing behind a moving krathong, whichever way it is heading */
+function drawWake(ctx, pos, t, k) {
+  const s = pos.s, seed = k.seed;
+  // direction of travel on the water plane (x = sideways, z = away from viewer)
+  const fx = k.retire === null ? Math.cos(k.heading) : 0;
+  const fz = k.retire === null ? Math.sin(k.heading) : 1;
   ctx.save();
   ctx.lineCap = 'round';
   for (let i = 0; i < 4; i++) {
@@ -298,11 +361,14 @@ function drawWake(ctx, pos, t, seed) {
     ctx.strokeStyle = `rgba(150,220,245,${0.32 * pos.alpha * shimmer * len})`;
     ctx.lineWidth = 4;
     for (const side of [-1, 1]) {
-      const x0 = pos.x + side * (60 + i * 30) * s;
-      const y0 = pos.y + (10 + i * 14) * s;
+      // water-plane offsets (sideways along n, backwards along -f) → screen
+      const a1 = side * (60 + i * 30), b1 = (10 + i * 14) / 0.35;
+      const a2 = a1 + side * 55 * len, b2 = b1 + 12 / 0.35;
+      const sx = (a, b) => pos.x + (a * fz - b * fx) * s;
+      const sy = (a, b) => pos.y - (-a * fx - b * fz) * 0.35 * s;
       ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x0 + side * 55 * s * len, y0 + 12 * s);
+      ctx.moveTo(sx(a1, b1), sy(a1, b1));
+      ctx.lineTo(sx(a2, b2), sy(a2, b2));
       ctx.stroke();
     }
   }
@@ -358,6 +424,8 @@ function frame(now) {
   const panelOpen = !panel.classList.contains('hidden');
   if (panelOpen && (state.frame = (state.frame || 0) + 1) % 15 === 1) panelTop = panel.getBoundingClientRect().top;
 
+  moveKrathongs(dt, t);
+
   // compute positions, drop finished ones, sort far → near
   const list = [];
   state.krathongs = state.krathongs.filter((k) => {
@@ -386,7 +454,7 @@ function frame(now) {
       fireworks.drawReflection(ctx);
       drawRings(ctx, t);
       for (const { k, pos } of list) {
-        drawWake(ctx, pos, t, k.seed);
+        drawWake(ctx, pos, t, k);
         drawKrathong(ctx, DESIGNS[k.design], pos.x, pos.y, pos.s, t, k.seed, pos.alpha);
       }
       if (panelOpen) {

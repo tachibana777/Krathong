@@ -4,8 +4,9 @@
 // density follows brightness and whose colour follows the pixel colour.
 // A blurred copy of the tiny canvas is laid underneath to fake bloom.
 
-const RAMP_A = [' ', '.', ':', '-', '=', '+', '*', '#', '%', '&', '@'];
-const RAMP_B = [' ', '`', "'", '~', 'i', 'x', 'o', '8', '$', 'B', '@'];
+// symbol-only ramp (no letters) so shapes read as pictures, not text
+const RAMP_A = [' ', '.', ':', '-', '=', '+', '*', '#', '#', '%', '@'];
+const RAMP_B = [' ', '.', ':', '~', '=', '+', '*', '#', '#', '%', '@'];
 
 // ctx.filter is slow or missing on many phones (and older Safari); test once.
 const FILTER_OK = (() => {
@@ -24,7 +25,7 @@ export class AsciiRenderer {
     this.lctx = this.low.getContext('2d', { willReadFrequently: true });
     this.cellW = opts.cellW || 8;
     this.cellH = opts.cellH || 13;
-    this.glow = opts.glow ?? 0.5;
+    this.glow = opts.glow ?? 0.75;
     this.blur = opts.blur ?? 7;
     this.useBlur = (opts.useBlur ?? true) && FILTER_OK;
     this.maxDpr = opts.maxDpr ?? 2;
@@ -101,7 +102,7 @@ export class AsciiRenderer {
         const ch = (hash & 4 ? RAMP_A : RAMP_B)[level];
         // normalise colour then scale by brightness so dim areas keep their hue
         const m = Math.max(r, g, b, 1);
-        const k = (255 / m) * (0.14 + 0.86 * Math.pow(lum, 0.6));
+        const k = (255 / m) * Math.min(1, 0.3 + Math.pow(lum, 0.5));
         const style = `rgb(${(r * k) | 0},${(g * k) | 0},${(b * k) | 0})`;
         if (style !== lastStyle) { ctx.fillStyle = style; lastStyle = style; }
         ctx.fillText(ch, x * cellW, y * cellH);

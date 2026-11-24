@@ -3,8 +3,10 @@
 // but turning pixels into tinted glyphs + bloom happens in a single fragment shader,
 // so the cost no longer grows with the number of characters on screen.
 
-const RAMP_A = [' ', '.', ':', '-', '=', '+', '*', '#', '%', '&', '@'];
-const RAMP_B = [' ', '`', "'", '~', 'i', 'x', 'o', '8', '$', 'B', '@'];
+// one calm, symbol-only ramp (no letters) so shapes read as pictures, not text;
+// the second row only swaps in look-alike symbols to avoid a rigid grid pattern
+const RAMP_A = [' ', '.', ':', '-', '=', '+', '*', '#', '#', '%', '@'];
+const RAMP_B = [' ', '.', ':', '~', '=', '+', '*', '#', '#', '%', '@'];
 
 const VERT = `
 attribute vec2 aPos;
@@ -19,6 +21,7 @@ uniform vec2 uCell;      // cell size in css px
 uniform vec2 uRes;       // canvas size in device px
 uniform float uDpr;
 uniform float uGlow;
+uniform float uFill;      // soft picture underneath the characters
 uniform float uThreshold;
 uniform vec3 uBg;
 
@@ -34,7 +37,8 @@ void main() {
   // bloom: a few bilinear taps around this pixel
   vec2 uv = cellF / span;
   vec2 o = 1.0 / span;
-  vec3 bloom = texture2D(uScene, uv).rgb * 0.36;
+  vec3 base = texture2D(uScene, uv).rgb;
+  vec3 bloom = base * 0.36;
   bloom += texture2D(uScene, uv + vec2( o.x * 1.5, 0.0)).rgb * 0.16;
   bloom += texture2D(uScene, uv + vec2(-o.x * 1.5, 0.0)).rgb * 0.16;
   bloom += texture2D(uScene, uv + vec2(0.0,  o.y * 1.2)).rgb * 0.16;
@@ -52,9 +56,9 @@ void main() {
     vec2 auv = vec2((level + local.x) / 11.0, (row + local.y) / 2.0);
     glyph = texture2D(uAtlas, auv).a;
     float m = max(max(c.r, c.g), max(c.b, 0.004));
-    tint = c / m * (0.14 + 0.86 * pow(lum, 0.6));
+    tint = c / m * min(1.0, 0.22 + 0.9 * pow(lum, 0.62));
   }
-  gl_FragColor = vec4(uBg + bloom * uGlow + tint * glyph, 1.0);
+  gl_FragColor = vec4(uBg + base * uFill + bloom * uGlow + tint * glyph, 1.0);
 }`;
 
 function compile(gl, type, src) {
@@ -79,7 +83,8 @@ export class GLAsciiRenderer {
     this.atlas = document.createElement('canvas');
     this.cellW = opts.cellW || 8;
     this.cellH = opts.cellH || 13;
-    this.glow = opts.glow ?? 0.55;
+    this.glow = opts.glow ?? 0.5;
+    this.fill = opts.fill ?? 0.3;
     this.maxDpr = opts.maxDpr ?? 2;
     this.threshold = opts.threshold ?? 0.04;
     this.fontFamily = opts.fontFamily || "'JetBrains Mono', 'Consolas', monospace";
@@ -92,7 +97,7 @@ export class GLAsciiRenderer {
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
     gl.useProgram(prog);
     this.u = {};
-    for (const n of ['uScene', 'uAtlas', 'uGrid', 'uCell', 'uRes', 'uDpr', 'uGlow', 'uThreshold', 'uBg']) this.u[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uScene', 'uAtlas', 'uGrid', 'uCell', 'uRes', 'uDpr', 'uGlow', 'uFill', 'uThreshold', 'uBg']) this.u[n] = gl.getUniformLocation(prog, n);
 
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -174,6 +179,7 @@ export class GLAsciiRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.low);
     gl.uniform1f(this.u.uGlow, this.glow);
+    gl.uniform1f(this.u.uFill, this.fill);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     const o = this.octx;

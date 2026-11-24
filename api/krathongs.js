@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { add, allow, recent } from '../lib/store.js';
 
 const DESIGN_COUNT = 10;
-const WINDOW_MS = 60_000; // a krathong is "on the river" for about a minute
+const WINDOW_MS = 60_000; // how far back a returning poll may catch up
+const ON_RIVER = 10;      // krathongs stay on the water until 10 newer ones arrive
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -26,8 +27,14 @@ export default async function handler(req, res) {
       const url = new URL(req.url, 'http://localhost');
       const now = Date.now();
       const asked = Number(url.searchParams.get('since')) || 0;
-      const since = Math.max(asked, now - WINDOW_MS);
-      const data = await recent(since);
+      let data;
+      if (!asked) {
+        // first visit: whatever is still on the river, i.e. the newest few, however old
+        data = await recent(0);
+        data.items = data.items.slice(-ON_RIVER);
+      } else {
+        data = await recent(Math.max(asked, now - WINDOW_MS));
+      }
       return send(res, 200, { ...data, now });
     }
 
